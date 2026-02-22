@@ -25,6 +25,36 @@
         <entry name="networkInterface" type="String">
             <default>auto</default>
         </entry>
+        <entry name="displayMode" type="String">
+            <default>text</default>
+        </entry>
+        <entry name="iconSize" type="Int">
+            <default>12</default>
+        </entry>
+        <entry name="cpuIcon" type="String">
+            <default>cpu</default>
+        </entry>
+        <entry name="ramIcon" type="String">
+            <default>memory</default>
+        </entry>
+        <entry name="tempIcon" type="String">
+            <default>temperature-normal</default>
+        </entry>
+        <entry name="batteryIcon" type="String">
+            <default>battery-good</default>
+        </entry>
+        <entry name="powerIcon" type="String">
+            <default>battery-charging-60</default>
+        </entry>
+        <entry name="networkIcon" type="String">
+            <default>network-wireless</default>
+        </entry>
+        <entry name="fontFamily" type="String">
+            <default>monospace</default>
+        </entry>
+        <entry name="fontSize" type="Int">
+            <default>0</default>
+        </entry>
         <entry name="updateInterval" type="Int">
             <default>2000</default>
         </entry>

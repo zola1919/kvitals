@@ -14,9 +14,11 @@ CPU: 26%  |  RAM: 8.8/39.0G  |  TEMP: 96°C  |  🔋BAT: 78%  |  PWR: +20W  |  N
 
 ## Features
 
-- **Live monitoring** — CPU usage, RAM, CPU temperature, battery status, network speed
-- **Configurable** — Toggle each metric on/off via right-click → Configure
-- **Adjustable refresh rate** — 1s to 10s update interval
+- **Live monitoring** — CPU usage, RAM, CPU temperature, battery status, power draw, network speed
+- **Display modes** — Text, Icons, or Icons + Text for the panel view
+- **Custom icons** — Pick any icon from your installed theme for each metric
+- **Font customization** — Choose any system font and size
+- **Configurable** — Toggle each metric, adjust refresh rate, organized in 3 settings tabs
 - **Minimal footprint** — Simple bash script + QML, no heavy dependencies
 - **Click to expand** — Detailed popup view with all stats
 
@@ -75,10 +77,13 @@ plasmashell --replace &
 
 ## Configuration
 
-Right-click the widget → **Configure KVitals...** to:
+Right-click the widget → **Configure KVitals...** to access settings in three tabs:
 
-- Toggle metrics: CPU, RAM, Temperature, Battery, Network
-- Adjust the refresh interval (1–10 seconds)
+- **General** — Display mode, icon size, font, update interval
+- **Metrics** — Toggle CPU, RAM, Temperature, Battery, Power, Network
+- **Icons** — Customize icons for each metric from your theme
+
+See the [full configuration reference](docs/configuration.md) for details.
 
 ## Uninstall
 
@@ -92,19 +97,36 @@ Then restart Plasma: `plasmashell --replace &`
 
 ```
 kvitals/
-├── metadata.json                  # Plasmoid metadata
-├── install.sh                     # Local install script
-├── install-remote.sh              # Remote install (curl/wget)
+├── metadata.json                   # Plasmoid metadata
+├── install.sh                      # Local install script
+├── install-remote.sh               # Remote install (curl/wget)
+├── CHANGELOG.md                    # Version history
+├── docs/                           # Documentation
+│   ├── installation.md
+│   ├── configuration.md
+│   ├── architecture.md
+│   ├── contributing.md
+│   └── troubleshooting.md
 └── contents/
     ├── config/
-    │   ├── config.qml             # Config page manifest
-    │   └── main.xml               # Config schema (defaults)
+    │   ├── config.qml              # Tab registration
+    │   └── main.xml                # Config schema
     ├── scripts/
-    │   └── sys-stats.sh           # System stats collector (bash)
+    │   └── sys-stats.sh            # System stats collector
     └── ui/
-        ├── main.qml               # Widget UI
-        └── configGeneral.qml      # Settings page UI
+        ├── main.qml                # Widget UI
+        ├── configGeneral.qml       # General settings tab
+        ├── configMetrics.qml       # Metrics settings tab
+        └── configIcons.qml         # Icons settings tab
 ```
+
+## Documentation
+
+- [Installation](docs/installation.md)
+- [Configuration](docs/configuration.md)
+- [Architecture](docs/architecture.md)
+- [Contributing](docs/contributing.md)
+- [Troubleshooting](docs/troubleshooting.md)
 
 ## License
 

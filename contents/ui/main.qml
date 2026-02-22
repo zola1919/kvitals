@@ -18,13 +18,30 @@ PlasmoidItem {
     property bool showPower: Plasmoid.configuration.showPower
     property bool showNetwork: Plasmoid.configuration.showNetwork
     property string networkInterface: Plasmoid.configuration.networkInterface
+    property string displayMode: Plasmoid.configuration.displayMode
+    property int iconSize: Plasmoid.configuration.iconSize
+    property string cpuIcon: Plasmoid.configuration.cpuIcon
+    property string ramIcon: Plasmoid.configuration.ramIcon
+    property string tempIcon: Plasmoid.configuration.tempIcon
+    property string batteryIcon: Plasmoid.configuration.batteryIcon
+    property string powerIcon: Plasmoid.configuration.powerIcon
+    property string networkIcon: Plasmoid.configuration.networkIcon
+    property string fontFamily: Plasmoid.configuration.fontFamily
+    property int fontSize: Plasmoid.configuration.fontSize
+    property int effectiveFontSize: fontSize > 0 ? fontSize : Kirigami.Theme.smallFont.pixelSize
 
-    property string cpuText: "..."
-    property string ramText: "..."
-    property string tempText: "..."
-    property string batText: "..."
-    property string powerText: "..."
-    property string netText: "..."
+    property bool useIcons: displayMode === "icons" || displayMode === "icons+text"
+    property bool useText:  displayMode === "text"  || displayMode === "icons+text"
+
+    property string cpuValue: "..."
+    property string ramValue: "..."
+    property string tempValue: "..."
+    property string batValue: "..."
+    property string batIcon: ""
+    property string powerValue: "..."
+    property string powerSign: ""
+    property string netDownValue: "..."
+    property string netUpValue: "..."
 
     Plasma5Support.DataSource {
         id: statsSource
@@ -45,30 +62,26 @@ PlasmoidItem {
             try {
                 var stats = JSON.parse(stdout);
 
-                root.cpuText = "CPU: " + stats.cpu + "%";
-                root.ramText = "RAM: " + stats.ram_used + "/" + stats.ram_total + "G";
-
-                if (stats.temp !== "N/A") {
-                    root.tempText = "TEMP: " + stats.temp + "°C";
-                } else {
-                    root.tempText = "TEMP: --";
-                }
+                root.cpuValue = stats.cpu + "%";
+                root.ramValue = stats.ram_used + "/" + stats.ram_total + "G";
+                root.tempValue = stats.temp !== "N/A" ? stats.temp + "°C" : "--";
 
                 if (stats.bat !== "N/A") {
-                    var batIcon = stats.bat_icon || "";
-                    root.batText = batIcon + "BAT: " + stats.bat + "%";
+                    root.batIcon = stats.bat_icon || "";
+                    root.batValue = stats.bat + "%";
                 } else {
-                    root.batText = "";
+                    root.batValue = "";
                 }
 
                 if (stats.power !== "N/A") {
-                    var powerSign = stats.power_sign || "";
-                    root.powerText = "PWR: " + powerSign + stats.power + "W";
+                    root.powerSign = stats.power_sign || "";
+                    root.powerValue = root.powerSign + stats.power + "W";
                 } else {
-                    root.powerText = "";
+                    root.powerValue = "";
                 }
 
-                root.netText = "NET: ↓" + stats.net_down + " ↑" + stats.net_up;
+                root.netDownValue = stats.net_down;
+                root.netUpValue = stats.net_up;
             } catch (e) {
                 console.log("sys-state parse error: " + e + " | raw: " + stdout);
             }
@@ -77,26 +90,72 @@ PlasmoidItem {
 
     compactRepresentation: RowLayout {
         id: compactRow
-        spacing: 0
+        spacing: Kirigami.Units.smallSpacing
 
-        PlasmaComponents.Label {
-            id: statsLabel
-            Layout.fillHeight: true
-            verticalAlignment: Text.AlignVCenter
-            font.pixelSize: Kirigami.Theme.smallFont.pixelSize
-            font.family: "monospace"
-            color: Kirigami.Theme.textColor
+        property var metricsModel: {
+            var items = [];
+            if (root.showCpu && root.cpuValue)
+                items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue });
+            if (root.showRam && root.ramValue)
+                items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue });
+            if (root.showTemp && root.tempValue)
+                items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue });
+            if (root.showBattery && root.batValue)
+                items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue });
+            if (root.showPower && root.powerValue)
+                items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue });
+            if (root.showNetwork) {
+                items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue });
+            }
+            return items;
+        }
 
-            text: {
-                var parts = [];
-                if (root.showCpu && root.cpuText) parts.push(root.cpuText);
-                if (root.showRam && root.ramText) parts.push(root.ramText);
-                if (root.showTemp && root.tempText) parts.push(root.tempText);
-                if (root.showBattery && root.batText) parts.push(root.batText);
-                if (root.showPower && root.powerText) parts.push(root.powerText);
-                if (root.showNetwork && root.netText) parts.push(root.netText);
-                if (parts.length === 0) return "KVitals";
-                return parts.join("  |  ");
+        Repeater {
+            model: compactRow.metricsModel
+
+            delegate: RowLayout {
+                spacing: 2
+                Layout.fillHeight: true
+
+                // Separator
+                PlasmaComponents.Label {
+                    visible: index > 0
+                    text: "|"
+                    font.pixelSize: root.effectiveFontSize
+                    font.family: root.fontFamily
+                    color: Kirigami.Theme.textColor
+                    opacity: 0.4
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                // Icon
+                Kirigami.Icon {
+                    visible: root.useIcons
+                    source: modelData.icon
+                    isMask: true
+                    Layout.preferredWidth: root.iconSize
+                    Layout.preferredHeight: root.iconSize
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                // Text label
+                PlasmaComponents.Label {
+                    visible: root.useText
+                    text: modelData.label
+                    font.pixelSize: root.effectiveFontSize
+                    font.family: root.fontFamily
+                    color: Kirigami.Theme.textColor
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                // Value
+                PlasmaComponents.Label {
+                    text: modelData.value
+                    font.pixelSize: root.effectiveFontSize
+                    font.family: root.fontFamily
+                    color: Kirigami.Theme.textColor
+                    Layout.alignment: Qt.AlignVCenter
+                }
             }
         }
     }
@@ -117,15 +176,14 @@ PlasmoidItem {
         Repeater {
             model: {
                 var items = [];
-                if (root.showCpu) items.push({ label: "CPU Usage", value: root.cpuText.replace("CPU: ", "") });
-                if (root.showRam) items.push({ label: "Memory", value: root.ramText.replace("RAM: ", "") });
-                if (root.showTemp) items.push({ label: "CPU Temp", value: root.tempText.replace("TEMP: ", "") });
-                if (root.showBattery) items.push({ label: "Battery", value: root.batText.replace(/.*BAT: /, "") });
-                if (root.showPower && root.powerText) items.push({ label: "Power", value: root.powerText.replace("PWR: ", "") });
+                if (root.showCpu) items.push({ label: "CPU Usage", value: root.cpuValue });
+                if (root.showRam) items.push({ label: "Memory", value: root.ramValue });
+                if (root.showTemp) items.push({ label: "CPU Temp", value: root.tempValue });
+                if (root.showBattery && root.batValue) items.push({ label: "Battery", value: root.batValue });
+                if (root.showPower && root.powerValue) items.push({ label: "Power", value: root.powerValue });
                 if (root.showNetwork) {
-                    var netParts = root.netText.replace("NET: ", "").split(" ↑");
-                    items.push({ label: "Network ↓", value: netParts[0].replace("↓", "") });
-                    items.push({ label: "Network ↑", value: netParts[1] || "0K" });
+                    items.push({ label: "Network ↓", value: root.netDownValue });
+                    items.push({ label: "Network ↑", value: root.netUpValue });
                 }
                 return items;
             }
@@ -152,12 +210,12 @@ PlasmoidItem {
     toolTipMainText: "KVitals"
     toolTipSubText: {
         var parts = [];
-        if (root.showCpu && root.cpuText) parts.push(root.cpuText);
-        if (root.showRam && root.ramText) parts.push(root.ramText);
-        if (root.showTemp && root.tempText) parts.push(root.tempText);
-        if (root.showBattery && root.batText) parts.push(root.batText);
-        if (root.showPower && root.powerText) parts.push(root.powerText);
-        if (root.showNetwork && root.netText) parts.push(root.netText);
+        if (root.showCpu && root.cpuValue) parts.push("CPU: " + root.cpuValue);
+        if (root.showRam && root.ramValue) parts.push("RAM: " + root.ramValue);
+        if (root.showTemp && root.tempValue) parts.push("TEMP: " + root.tempValue);
+        if (root.showBattery && root.batValue) parts.push("BAT: " + root.batValue);
+        if (root.showPower && root.powerValue) parts.push("PWR: " + root.powerValue);
+        if (root.showNetwork) parts.push("NET: ↓" + root.netDownValue + " ↑" + root.netUpValue);
         return parts.join("\n");
     }
 }

@@ -3,84 +3,82 @@ import QtQuick.Controls 2.0
 import QtQuick.Layouts 1.0
 import org.kde.kirigami 2.5 as Kirigami
 import org.kde.kcmutils as KCM
-import org.kde.plasma.plasma5support as Plasma5Support
 
 KCM.SimpleKCM {
     id: configPage
 
-    property alias cfg_showCpu: showCpuCheck.checked
-    property alias cfg_showRam: showRamCheck.checked
-    property alias cfg_showTemp: showTempCheck.checked
-    property alias cfg_showBattery: showBatteryCheck.checked
-    property alias cfg_showPower: showPowerCheck.checked
-    property alias cfg_showNetwork: showNetworkCheck.checked
     property alias cfg_updateInterval: intervalSlider.value
-    property string cfg_networkInterface: "auto"
+    property alias cfg_iconSize: iconSizeSlider.value
+    property alias cfg_fontSize: fontSizeSlider.value
+    property string cfg_displayMode: "text"
+    property string cfg_fontFamily: "monospace"
 
-    property var ifaceList: []
-
-    Plasma5Support.DataSource {
-        id: ifaceSource
-        engine: "executable"
-        connectedSources: ["ls /sys/class/net/"]
-
-        onNewData: function(source, data) {
-            if (data["exit code"] !== 0) return;
-            var raw = data["stdout"].trim();
-            if (raw.length === 0) return;
-            var ifaces = raw.split("\n").filter(function(name) {
-                return name !== "lo" && name.length > 0;
-            });
-            ifaces.unshift("auto");
-            configPage.ifaceList = ifaces;
-        }
-    }
+    readonly property var displayModes: ["text", "icons", "icons+text"]
+    readonly property var displayModeLabels: [i18n("Text"), i18n("Icons"), i18n("Icons + Text")]
+    readonly property bool iconsEnabled: cfg_displayMode !== "text"
 
     Kirigami.FormLayout {
 
-        CheckBox {
-            id: showCpuCheck
-            text: i18n("Show CPU usage")
-            Kirigami.FormData.label: i18n("Metrics:")
-        }
-
-        CheckBox {
-            id: showRamCheck
-            text: i18n("Show RAM usage")
-        }
-
-        CheckBox {
-            id: showTempCheck
-            text: i18n("Show CPU temperature")
-        }
-
-        CheckBox {
-            id: showBatteryCheck
-            text: i18n("Show battery status")
-        }
-
-        CheckBox {
-            id: showPowerCheck
-            text: i18n("Show power consumption")
-        }
-
-        CheckBox {
-            id: showNetworkCheck
-            text: i18n("Show network speed")
-        }
-
         ComboBox {
-            id: ifaceCombo
-            Kirigami.FormData.label: i18n("Network interface:")
-            model: configPage.ifaceList
-            enabled: showNetworkCheck.checked
+            id: displayModeCombo
+            Kirigami.FormData.label: i18n("Display mode:")
+            model: configPage.displayModeLabels
             currentIndex: {
-                var idx = configPage.ifaceList.indexOf(cfg_networkInterface);
+                var idx = configPage.displayModes.indexOf(cfg_displayMode);
                 return idx >= 0 ? idx : 0;
             }
             onActivated: {
-                cfg_networkInterface = configPage.ifaceList[currentIndex];
+                cfg_displayMode = configPage.displayModes[currentIndex];
             }
+        }
+
+        Slider {
+            id: iconSizeSlider
+            Kirigami.FormData.label: i18n("Icon size:")
+            from: 8
+            to: 24
+            stepSize: 2
+            value: 12
+            visible: configPage.iconsEnabled
+        }
+
+        Label {
+            text: iconSizeSlider.value + " px"
+            opacity: 0.7
+            visible: configPage.iconsEnabled
+        }
+
+        ComboBox {
+            id: fontFamilyCombo
+            Kirigami.FormData.label: i18n("Font:")
+            model: Qt.fontFamilies()
+            editable: true
+            currentIndex: {
+                var families = Qt.fontFamilies();
+                var idx = families.indexOf(cfg_fontFamily);
+                return idx >= 0 ? idx : 0;
+            }
+            onActivated: {
+                cfg_fontFamily = currentText;
+            }
+            onAccepted: {
+                cfg_fontFamily = editText;
+            }
+            popup.height: 300
+        }
+
+        Slider {
+            id: fontSizeSlider
+            Kirigami.FormData.label: i18n("Font size:")
+            from: 0
+            to: 24
+            stepSize: 1
+            value: 0
+        }
+
+        Label {
+            text: fontSizeSlider.value === 0 ? i18n("System default") : fontSizeSlider.value + " px"
+            opacity: 0.7
         }
 
         Slider {

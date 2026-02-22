@@ -6,3 +6,7 @@
 .vscode/
 .idea/
 bin/
+env/
+
+*.d2
+site/
