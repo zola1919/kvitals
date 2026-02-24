@@ -62,7 +62,7 @@ get_cpu() {
 # RAM Usage
 
 get_ram() {
-    awk '/^Mem:/ {printf "%.1f %.1f", $3/1073741824, $2/1073741824}' <(free -b)
+    awk '/^MemTotal:/ {total=$2} /^MemAvailable:/ {avail=$2} END {printf "%.1f %.1f", (total-avail)/1048576, total/1048576}' /proc/meminfo
 }
 
 # CPU Temperature (4-tier fallback, Intel + AMD)

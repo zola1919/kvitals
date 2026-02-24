@@ -2,6 +2,12 @@
 
 All notable changes to KVitals will be documented in this file.
 
+## [1.4.1] - 2026-02-24
+
+### Fixed
+- RAM usage showing empty on non-English locales — `free` translates its `Mem:` header based on locale, causing the parser to match nothing
+- Switched RAM data source from `free -b` to `/proc/meminfo` (locale-independent, faster, more accurate)
+
 ## [1.4.0] - 2026-02-22
 
 ### Added
@@ -49,7 +55,7 @@ All notable changes to KVitals will be documented in this file.
 ### Added
 - Initial release
 - CPU usage (delta-based from `/proc/stat`)
-- RAM usage (from `free`)
+- RAM usage (from `/proc/meminfo`)
 - CPU temperature (multi-source detection)
 - Battery status with emoji indicators
 - Network speed (delta-based from `/proc/net/dev`)

@@ -26,6 +26,15 @@ sensors 2>/dev/null | head -20
     ```
     To load it automatically on boot, add `k10temp` to `/etc/modules-load.d/k10temp.conf`.
 
+## RAM Shows Empty (versions ≤ 1.4.0)
+
+**Cause:** On versions before 1.4.1, RAM was read by parsing the `free` command, which translates its output headers (e.g. `Mem:`) based on your system locale. Non-English locales caused the parser to match nothing.
+
+**Fix:** Update to KVitals 1.4.1+, which reads directly from `/proc/meminfo` (always English, locale-independent).
+
+!!! tip "Workaround for older versions"
+    If you can't update immediately, set the locale for the script by adding `export LC_ALL=C` before running it.
+
 ## Battery/Power Shows Nothing
 
 **Cause:** No battery detected (desktop systems without a battery).
@@ -61,7 +70,7 @@ sensors 2>/dev/null | head -20
    ```
 
 !!! warning
-    If the script outputs nothing or errors, check that `free`, `awk`, and `bc` are installed on your system.
+    If the script outputs nothing or errors, check that `awk` is installed on your system.
 
 ## Icons Not Visible on Panel
 

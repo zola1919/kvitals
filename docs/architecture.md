@@ -15,7 +15,7 @@ The bash script collects all system metrics and outputs a single JSON object. It
 | Metric | Source | Method |
 |--------|--------|--------|
 | CPU | `/proc/stat` | Delta-based calculation between two reads |
-| RAM | `free` | Parsed used/total from `free -m` |
+| RAM | `/proc/meminfo` | `MemTotal` − `MemAvailable` for used, `MemTotal` for total |
 | Temperature | 4-tier fallback | thermal_zone → hwmon → lm-sensors → generic |
 | Battery | `/sys/class/power_supply/` | Reads `capacity` and `status` |
 | Power | `/sys/class/power_supply/` | `power_now` or `current_now × voltage_now` |
