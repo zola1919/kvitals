@@ -1,0 +1,40 @@
+name: Deploy to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - name: Install MkDocs and Plugins
+        run: |
+          pip install mkdocs-material mkdocs-llmstxt
+
+      - name: Build site
+        run: mkdocs build
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/pages-action@v1
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          projectName: 'kvitals'
+          directory: 'site'
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
