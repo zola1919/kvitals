@@ -2,6 +2,12 @@
 
 All notable changes to KVitals will be documented in this file.
 
+## [2.1.0] - 2026-03-01
+
+### Added
+- **GPU Metrics Support**: Added VRAM usage and GPU temperature monitoring to the widget.
+- GPU data is retrieved natively using KDE KSysGuard sensors (`org.kde.ksysguard.sensors`).
+
 ## [2.0.0] - 2026-02-27
 
 ### Changed
