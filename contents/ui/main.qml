@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import org.kde.plasma.plasmoid
 import org.kde.plasma.core as PlasmaCore
 import org.kde.plasma.components as PlasmaComponents
+import org.kde.plasma.extras as PlasmaExtras
 import org.kde.plasma.plasma5support as Plasma5Support
 import org.kde.kirigami as Kirigami
 import org.kde.ksysguard.sensors as Sensors
@@ -564,19 +565,19 @@ PlasmoidItem {
             for (var i = 0; i < root.orderedKeys.length; i++) {
                 var key = root.orderedKeys[i];
                 if (key === "cpu" && root.showCpu && root.cpuValue)
-                    items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue });
+                    items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue, iconColor: "#3daee9" });
                 else if (key === "ram" && root.showRam && root.ramValue)
-                    items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue });
+                    items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue, iconColor: "#9b59b6" });
                 else if (key === "temp" && root.showTemp && root.tempValue && root.tempValue !== "--")
-                    items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue });
+                    items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue, iconColor: "#e74c3c" });
                 else if (key === "gpu" && root.showGpu && root.hasGpuData)
-                    items.push({ icon: root.gpuIcon, label: "GPU:", value: root.gpuDisplayValue });
+                    items.push({ icon: root.gpuIcon, label: "GPU:", value: root.gpuDisplayValue, iconColor: "#2ecc71" });
                 else if (key === "bat" && root.showBattery && root.batValue)
-                    items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue });
+                    items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue, iconColor: "#f1c40f" });
                 else if (key === "pwr" && root.showPower && root.powerValue)
-                    items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue });
+                    items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue, iconColor: "#e67e22" });
                 else if (key === "net" && root.showNetwork)
-                    items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue });
+                    items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue, iconColor: "#1abc9c" });
             }
             return items;
         }
@@ -592,7 +593,8 @@ PlasmoidItem {
                 Kirigami.Icon {
                     visible: root.useIcons
                     source: modelData.icon
-                    isMask: false
+                    isMask: true
+                    color: modelData.iconColor
                     Layout.preferredWidth: root.iconSize
                     Layout.preferredHeight: root.iconSize
                     Layout.alignment: Qt.AlignVCenter
@@ -620,53 +622,57 @@ PlasmoidItem {
         }
     }
 
-    fullRepresentation: ColumnLayout {
-        spacing: Kirigami.Units.smallSpacing
+    fullRepresentation: PlasmaExtras.Representation {
         Layout.preferredWidth: Kirigami.Units.gridUnit * 18
         Layout.preferredHeight: Kirigami.Units.gridUnit * 12
 
-        Repeater {
-            model: {
-                var items = [];
-                for (var i = 0; i < root.orderedKeys.length; i++) {
-                    var key = root.orderedKeys[i];
-                    if (key === "cpu" && root.showCpu)
-                        items.push({ label: "CPU Usage", value: root.cpuValue });
-                    else if (key === "ram" && root.showRam)
-                        items.push({ label: "Memory", value: root.ramValue });
-                    else if (key === "temp" && root.showTemp && root.tempValue !== "--")
-                        items.push({ label: "CPU Temp", value: root.tempValue });
-                    else if (key === "gpu" && root.showGpu) {
-                        if (root.hasGpuUsageData) items.push({ label: "GPU Usage", value: root.gpuValue });
-                        if (root.hasGpuVramData) items.push({ label: "GPU VRAM", value: root.gpuRamValue });
-                        if (root.hasGpuTempData) items.push({ label: "GPU Temp", value: root.gpuTempValue });
+        ColumnLayout {
+            anchors.fill: parent
+            spacing: Kirigami.Units.smallSpacing
+
+            Repeater {
+                model: {
+                    var items = [];
+                    for (var i = 0; i < root.orderedKeys.length; i++) {
+                        var key = root.orderedKeys[i];
+                        if (key === "cpu" && root.showCpu)
+                            items.push({ label: "CPU Usage", value: root.cpuValue });
+                        else if (key === "ram" && root.showRam)
+                            items.push({ label: "Memory", value: root.ramValue });
+                        else if (key === "temp" && root.showTemp && root.tempValue !== "--")
+                            items.push({ label: "CPU Temp", value: root.tempValue });
+                        else if (key === "gpu" && root.showGpu) {
+                            if (root.hasGpuUsageData) items.push({ label: "GPU Usage", value: root.gpuValue });
+                            if (root.hasGpuVramData) items.push({ label: "GPU VRAM", value: root.gpuRamValue });
+                            if (root.hasGpuTempData) items.push({ label: "GPU Temp", value: root.gpuTempValue });
+                        }
+                        else if (key === "bat" && root.showBattery && root.batValue)
+                            items.push({ label: "Battery", value: root.batValue });
+                        else if (key === "pwr" && root.showPower && root.powerValue)
+                            items.push({ label: "Power", value: root.powerValue });
+                        else if (key === "net" && root.showNetwork) {
+                            items.push({ label: "Network ↓", value: root.netDownValue });
+                            items.push({ label: "Network ↑", value: root.netUpValue });
+                        }
                     }
-                    else if (key === "bat" && root.showBattery && root.batValue)
-                        items.push({ label: "Battery", value: root.batValue });
-                    else if (key === "pwr" && root.showPower && root.powerValue)
-                        items.push({ label: "Power", value: root.powerValue });
-                    else if (key === "net" && root.showNetwork) {
-                        items.push({ label: "Network ↓", value: root.netDownValue });
-                        items.push({ label: "Network ↑", value: root.netUpValue });
-                    }
+                    return items;
                 }
-                return items;
-            }
 
-            delegate: RowLayout {
-                Layout.fillWidth: true
-                Layout.leftMargin: Kirigami.Units.largeSpacing
-                Layout.rightMargin: Kirigami.Units.largeSpacing
-
-                PlasmaComponents.Label {
-                    text: modelData.label
-                    opacity: 0.7
+                delegate: RowLayout {
                     Layout.fillWidth: true
-                }
-                PlasmaComponents.Label {
-                    text: modelData.value
-                    font.bold: true
-                    horizontalAlignment: Text.AlignRight
+                    Layout.leftMargin: Kirigami.Units.largeSpacing
+                    Layout.rightMargin: Kirigami.Units.largeSpacing
+
+                    PlasmaComponents.Label {
+                        text: modelData.label
+                        opacity: 0.7
+                        Layout.fillWidth: true
+                    }
+                    PlasmaComponents.Label {
+                        text: modelData.value
+                        font.bold: true
+                        horizontalAlignment: Text.AlignRight
+                    }
                 }
             }
         }
