@@ -32,7 +32,7 @@
             <default>auto</default>
         </entry>
         <entry name="displayMode" type="String">
-            <default>text</default>
+            <default>icons+text</default>
         </entry>
         <entry name="iconSize" type="Int">
             <default>12</default>
