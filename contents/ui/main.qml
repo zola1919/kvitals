@@ -10,6 +10,8 @@ import org.kde.ksysguard.sensors as Sensors
 PlasmoidItem {
     id: root
 
+    Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
+
     preferredRepresentation: compactRepresentation
 
     property bool showCpu: Plasmoid.configuration.showCpu
@@ -549,9 +551,9 @@ PlasmoidItem {
         return formatRate(netUpSensor.value);
     }
 
-    compactRepresentation: RowLayout {
+    compactRepresentation: ColumnLayout {
         id: compactRow
-        spacing: Kirigami.Units.smallSpacing
+        spacing: 1
 
         TapHandler {
             onTapped: root.expanded = !root.expanded
@@ -584,24 +586,13 @@ PlasmoidItem {
 
             delegate: RowLayout {
                 spacing: 2
-                Layout.fillHeight: true
-
-                // Separator
-                PlasmaComponents.Label {
-                    visible: index > 0
-                    text: "|"
-                    font.pixelSize: root.effectiveFontSize
-                    font.family: root.fontFamily
-                    color: Kirigami.Theme.textColor
-                    opacity: 0.4
-                    Layout.alignment: Qt.AlignVCenter
-                }
+                Layout.fillWidth: true
 
                 // Icon
                 Kirigami.Icon {
                     visible: root.useIcons
                     source: modelData.icon
-                    isMask: true
+                    isMask: false
                     Layout.preferredWidth: root.iconSize
                     Layout.preferredHeight: root.iconSize
                     Layout.alignment: Qt.AlignVCenter
@@ -633,14 +624,6 @@ PlasmoidItem {
         spacing: Kirigami.Units.smallSpacing
         Layout.preferredWidth: Kirigami.Units.gridUnit * 18
         Layout.preferredHeight: Kirigami.Units.gridUnit * 12
-
-        PlasmaComponents.Label {
-            text: "KVitals"
-            font.bold: true
-            font.pixelSize: Kirigami.Theme.defaultFont.pixelSize * 1.2
-            Layout.alignment: Qt.AlignHCenter
-            Layout.bottomMargin: Kirigami.Units.smallSpacing
-        }
 
         Repeater {
             model: {
