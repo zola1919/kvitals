@@ -22,7 +22,27 @@ PlasmoidItem {
     property bool showBattery: Plasmoid.configuration.showBattery
     property bool showPower: Plasmoid.configuration.showPower
     property bool showNetwork: Plasmoid.configuration.showNetwork
+    property bool showDisk: Plasmoid.configuration.showDisk
+    property bool showCpuPower: Plasmoid.configuration.showCpuPower
+    property bool showCpuFrequency: Plasmoid.configuration.showCpuFrequency
+    
+    // Watch for CPU power toggle changes
+    onShowCpuPowerChanged: {
+        if (showCpuPower && !raplPermissionFixed) {
+            // Check if file is readable first, only chmod if needed
+            raplCheckSource.connectSource("cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null");
+        }
+    }
+
+    // Watch for CPU frequency toggle changes
+    onShowCpuFrequencyChanged: {
+        if (showCpuFrequency) {
+            cpuFrequencySource.run();
+        }
+    }
+
     property string networkInterface: Plasmoid.configuration.networkInterface
+    property string diskDevice: Plasmoid.configuration.diskDevice
     property string batteryDevice: Plasmoid.configuration.batteryDevice
     property string displayMode: Plasmoid.configuration.displayMode
     property int iconSize: Plasmoid.configuration.iconSize
@@ -33,6 +53,7 @@ PlasmoidItem {
     property string batteryIcon: Plasmoid.configuration.batteryIcon
     property string powerIcon: Plasmoid.configuration.powerIcon
     property string networkIcon: Plasmoid.configuration.networkIcon
+    property string diskIcon: Plasmoid.configuration.diskIcon
     property string fontFamily: Plasmoid.configuration.fontFamily
     property int fontSize: Plasmoid.configuration.fontSize
     property int effectiveFontSize: fontSize > 0 ? fontSize : Kirigami.Theme.smallFont.pixelSize
@@ -40,7 +61,7 @@ PlasmoidItem {
     property bool useIcons: displayMode === "icons" || displayMode === "icons+text"
     property bool useText:  displayMode === "text"  || displayMode === "icons+text"
 
-    property string metricOrder: Plasmoid.configuration.metricOrder || "cpu,ram,temp,gpu,bat,pwr,net"
+    property string metricOrder: Plasmoid.configuration.metricOrder || "cpu,ram,temp,gpu,bat,pwr,net,disk"
     property var orderedKeys: metricOrder.split(",").map(function(k) { return k.trim(); })
 
     // KSysGuard Sensors
@@ -51,6 +72,12 @@ PlasmoidItem {
         if (networkInterface === "" || networkInterface === "auto")
             return "all";
         return networkInterface;
+    }
+
+    readonly property string diskDevicePath: {
+        if (diskDevice === "" || diskDevice === "auto")
+            return "all";
+        return diskDevice;
     }
 
     Sensors.Sensor {
@@ -221,21 +248,269 @@ PlasmoidItem {
         updateRateLimit: root.updateInterval
     }
 
+    Sensors.Sensor {
+        id: diskReadSensor
+        sensorId: "disk/" + root.diskDevicePath + "/read"
+        updateRateLimit: root.updateInterval
+    }
+
+    Sensors.Sensor {
+        id: diskWriteSensor
+        sensorId: "disk/" + root.diskDevicePath + "/write"
+        updateRateLimit: root.updateInterval
+    }
+
+    Sensors.Sensor {
+      id: diskUsedSensor
+      sensorId: "disk/" + root.diskDevicePath + "/used"
+      updateRateLimit: root.updateInterval
+    }
+
+    Sensors.Sensor {
+      id: diskTotalSensor
+      sensorId: "disk/" + root.diskDevicePath + "/total"
+      updateRateLimit: root.updateInterval
+    }
+
+    // --- CPU Power consumption (RAPL) ---
+
+    property real cpuEnergyUJoules: -1
+    property real previousCpuEnergyUJoules: -1
+    property real cpuPowerWatts: 0
+    property real previousTimestampUSec: 0
+    property bool cpuPowerSupported: false
+    property bool raplPermissionFixed: false
+
+    Plasma5Support.DataSource {
+        id: cpuPowerSource
+        engine: "executable"
+
+        onNewData: function(sourceName, data) {
+            disconnectSource(sourceName);
+            if (data["exit code"] !== 0) return;
+            
+            var energyStr = (data["stdout"] || "").trim();
+            if (energyStr.length === 0) return;
+            
+            var currentEnergy = parseInt(energyStr);
+            if (isNaN(currentEnergy) || currentEnergy < 0) return;
+
+            var currentTimestamp = new Date().getTime() * 1000; // Convert to microseconds
+
+            if (previousCpuEnergyUJoules <= 0) {
+                // First reading: initialize and return 0
+                previousCpuEnergyUJoules = currentEnergy;
+                previousTimestampUSec = currentTimestamp;
+                cpuEnergyUJoules = currentEnergy;
+                cpuPowerSupported = true;
+                cpuPowerWatts = 0;
+            } else {
+                // Calculate power: watts = microjoules / microseconds
+                var energyDelta = currentEnergy - previousCpuEnergyUJoules;
+                var timeDelta = currentTimestamp - previousTimestampUSec;
+
+                if (timeDelta > 0) {
+                    cpuPowerWatts = energyDelta / timeDelta;
+                    cpuEnergyUJoules = currentEnergy;
+                    previousCpuEnergyUJoules = currentEnergy;
+                    previousTimestampUSec = currentTimestamp;
+                }
+            }
+        }
+
+        function run() {
+            var cmd = "cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null || echo -1";
+            connectSource(cmd);
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: raplCheckSource
+        engine: "executable"
+
+        onNewData: function(sourceName, data) {
+            disconnectSource(sourceName);
+            // Check if file is readable
+            if (data["exit code"] === 0) {
+                // File is already readable, no need to chmod
+                raplPermissionFixed = true;
+                cpuPowerSource.run();
+            } else {
+                // File is not readable, run chmod with password dialog
+                var chmodCmd = "kdesu -c \"chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj\"";
+                chmodRaplSource.connectSource(chmodCmd);
+            }
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: chmodRaplSource
+        engine: "executable"
+
+        onNewData: function(sourceName, data) {
+            disconnectSource(sourceName);
+            // chmod completed (success or failure)
+            raplPermissionFixed = true;
+            // Try to start reading CPU power
+            cpuPowerSource.run();
+        }
+    }
+
+    Timer {
+        id: cpuPowerTimer
+        interval: root.updateInterval
+        repeat: true
+        running: raplPermissionFixed && root.showCpuPower
+        onTriggered: {
+            cpuPowerSource.run();
+        }
+    }
+
+    // --- CPU Frequency ---
+
+    property real cpuFrequencyMHz: -1
+    property bool cpuFrequencySupported: false
+
+    Plasma5Support.DataSource {
+        id: cpuFrequencySource
+        engine: "executable"
+
+        onNewData: function(sourceName, data) {
+            disconnectSource(sourceName);
+            if (data["exit code"] !== 0) return;
+            
+            var freqStr = (data["stdout"] || "").trim();
+            if (freqStr.length === 0) return;
+            
+            var freqKHz = parseInt(freqStr);
+            if (isNaN(freqKHz) || freqKHz <= 0) return;
+
+            cpuFrequencyMHz = freqKHz / 1000.0;
+            cpuFrequencySupported = true;
+        }
+
+        function run() {
+            // Try to read from scaling_cur_freq (in kHz)
+            var cmd = "cat /sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq 2>/dev/null || echo -1";
+            connectSource(cmd);
+        }
+    }
+
+    Timer {
+        id: cpuFrequencyTimer
+        interval: root.updateInterval
+        repeat: true
+        running: root.showCpuFrequency
+        onTriggered: {
+            cpuFrequencySource.run();
+        }
+    }
+
+    // --- Partition usage for disk metrics ---
+
+    property string selectedDiskDevice: ""
+    property real summedPartitionUsed: 0
+    property real summedPartitionTotal: 0
+
+    onDiskDeviceChanged: {
+        if (diskDevice === "auto") {
+            selectedDiskDevice = "";
+            summedPartitionUsed = 0;
+            summedPartitionTotal = 0;
+        } else {
+            selectedDiskDevice = diskDevice;
+            partitionUsageSource.run(diskDevice);
+        }
+    }
+
+    Timer {
+        id: partitionUpdateTimer
+        interval: root.updateInterval
+        repeat: true
+        running: selectedDiskDevice && selectedDiskDevice.length > 0
+        onTriggered: {
+            if (selectedDiskDevice && selectedDiskDevice.length > 0) {
+                partitionUsageSource.run(selectedDiskDevice);
+            }
+        }
+    }
+
+    Plasma5Support.DataSource {
+        id: partitionUsageSource
+        engine: "executable"
+
+        onNewData: function(sourceName, data) {
+            disconnectSource(sourceName);
+            if (data["exit code"] !== 0) return;
+            
+            // Call the parse function to extract and sum partition data
+            parsePartitionUsage(data["stdout"] || "");
+        }
+
+        function run(device) {
+            // Combine lsblk (for sizes) and df (for used space) to get total and used
+            var cmd = "lsblk -b -J /dev/" + device + " 2>/dev/null && df -B1 /dev/" + device + "* 2>/dev/null";
+            connectSource(cmd);
+        }
+    }
+
+    function parsePartitionUsage(output) {
+        // Parse lsblk JSON to get partition sizes
+        var totalSize = 0;
+        try {
+            // Extract JSON part (after lsblk output)
+            var jsonMatch = output.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                var lsblkOutput = JSON.parse(jsonMatch[0]);
+                if (lsblkOutput.blockdevices && lsblkOutput.blockdevices[0]) {
+                    var device = lsblkOutput.blockdevices[0];
+                    // Sum all partition sizes
+                    if (device.children) {
+                        for (var i = 0; i < device.children.length; i++) {
+                            var child = device.children[i];
+                            if (child.size) {
+                                totalSize += parseInt(child.size) || 0;
+                            }
+                        }
+                    }
+                }
+            }
+        } catch(e) {
+            // If JSON parsing fails, try df parsing
+            console.warn("lsblk JSON parse failed, using df fallback");
+        }
+
+        // Parse df output for used space
+        var usedSpace = 0;
+        var lines = output.split("\n");
+        for (var i = 1; i < lines.length; i++) { // Skip header
+            var line = lines[i].trim();
+            if (line.length === 0) continue;
+            var parts = line.split(/\s+/);
+            // df output: Filesystem Size Used Available Use% Mounted
+            if (parts.length >= 3) {
+                var used = parseInt(parts[2]) || 0;
+                if (!isNaN(used)) {
+                    usedSpace += used;
+                }
+                // If totalSize wasn't parsed from lsblk, try to get it from df
+                if (totalSize === 0 && parts[1]) {
+                    var size = parseInt(parts[1]) || 0;
+                    if (!isNaN(size)) {
+                        totalSize += size;
+                    }
+                }
+            }
+        }
+
+        summedPartitionUsed = usedSpace;
+        summedPartitionTotal = totalSize;
+    }
+
     // --- Dynamic battery sensor discovery ---
 
     property string discoveredBatId: ""
-
-    property string batChargeSensorId: {
-        var base = (batteryDevice && batteryDevice !== "auto") ? batteryDevice : discoveredBatId;
-        return base ? ("power/" + base + "/chargePercentage") : "";
-    }
-
-    property string batRateSensorId: {
-        var base = (batteryDevice && batteryDevice !== "auto") ? batteryDevice : discoveredBatId;
-        return base ? ("power/" + base + "/chargeRate") : "";
-    }
-
-    // Stage 1: Silent probes
+    
     property var batteryCandidates: [
         "battery_BAT0",
         "battery_BAT1",
@@ -249,18 +524,45 @@ PlasmoidItem {
     property bool showManualBatteryInput: false
 
     Component.onCompleted: {
-        if (batteryDevice && batteryDevice !== "auto")
-            return;
-
-        for (var i = 0; i < batteryCandidates.length; i++) {
-            var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
-            var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 0 }';
-            try {
-                var probe = Qt.createQmlObject(code, root, "probe_" + i);
-                stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
-            } catch(e) {
+        // Partition usage for selected disk
+        if (diskDevice && diskDevice !== "auto") {
+            selectedDiskDevice = diskDevice;
+            partitionUsageSource.run(diskDevice);
+        }
+        
+        // Battery probe setup
+        if (!batteryDevice || batteryDevice === "auto") {
+            for (var i = 0; i < batteryCandidates.length; i++) {
+                var pre = "power/" + batteryCandidates[i] + "/chargePercentage";
+                var code = 'import org.kde.ksysguard.sensors as Sensors; Sensors.Sensor { sensorId: "' + pre + '"; updateRateLimit: 0 }';
+                try {
+                    var probe = Qt.createQmlObject(code, root, "probe_" + i);
+                    stage1Probes.push({ candidate: batteryCandidates[i], probe: probe });
+                } catch(e) {
+                }
             }
         }
+        
+        // Initialize CPU power if already enabled in config
+        if (root.showCpuPower) {
+            // Check if file is readable first, only chmod if needed
+            raplCheckSource.connectSource("cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null");
+        }
+        
+        // Initialize CPU frequency reading if enabled
+        if (root.showCpuFrequency) {
+            cpuFrequencySource.run();
+        }
+    }
+
+    property string batChargeSensorId: {
+        var base = (batteryDevice && batteryDevice !== "auto") ? batteryDevice : discoveredBatId;
+        return base ? ("power/" + base + "/chargePercentage") : "";
+    }
+
+    property string batRateSensorId: {
+        var base = (batteryDevice && batteryDevice !== "auto") ? batteryDevice : discoveredBatId;
+        return base ? ("power/" + base + "/chargeRate") : "";
     }
 
     Timer {
@@ -399,6 +701,15 @@ PlasmoidItem {
         return Math.max(0, kbps).toFixed(1) + "K";
     }
 
+    function formatFrequency(mhz) {
+        if (typeof mhz !== "number" || isNaN(mhz) || mhz < 0)
+            return "";
+        if (mhz >= 1000) {
+            return (mhz / 1000).toFixed(1) + " GHz";
+        }
+        return Math.round(mhz) + " MHz";
+    }
+
     function sensorValueOrNaN(sensor) {
         if (!sensor || sensor.status !== Sensors.Sensor.Ready)
             return NaN;
@@ -450,7 +761,14 @@ PlasmoidItem {
 
     property string cpuValue: {
         if (cpuSensor.status !== Sensors.Sensor.Ready) return "...";
-        return Math.round(cpuSensor.value) + "%";
+        var usage = Math.round(cpuSensor.value) + "%";
+        if (root.showCpuPower && root.cpuPowerSupported && cpuPowerWatts >= 0) {
+            usage += " (" + cpuPowerWatts.toFixed(2) + "W)";
+        }
+        if (root.showCpuFrequency && root.cpuFrequencySupported && cpuFrequencyMHz > 0) {
+            usage += " " + formatFrequency(cpuFrequencyMHz);
+        }
+        return usage;
     }
 
     property string ramValue: {
@@ -552,6 +870,45 @@ PlasmoidItem {
         return formatRate(netUpSensor.value);
     }
 
+    property string diskReadValue: {
+        if (diskReadSensor.status !== Sensors.Sensor.Ready) return "...";
+        return formatRate(diskReadSensor.value);
+    }
+
+    property string diskWriteValue: {
+        if (diskWriteSensor.status !== Sensors.Sensor.Ready) return "...";
+        return formatRate(diskWriteSensor.value);
+    }
+
+    property string diskUsedValue: {
+        // Use summed partition values if a specific device is selected
+        if (selectedDiskDevice && selectedDiskDevice.length > 0 && summedPartitionUsed > 0) {
+            return formatBytes(summedPartitionUsed) + "G";
+        }
+        // Fallback to sensor (handles "all" and devices without partitions)
+        if (diskUsedSensor.status !== Sensors.Sensor.Ready) return "...";
+        return formatBytes(diskUsedSensor.value) + "G";
+    }
+
+    property string diskTotalValue: {
+        // Use summed partition values if a specific device is selected
+        if (selectedDiskDevice && selectedDiskDevice.length > 0 && summedPartitionTotal > 0) {
+            return formatBytes(summedPartitionTotal) + "G";
+        }
+        // Fallback to sensor (handles "all" and devices without partitions)
+        if (diskTotalSensor.status !== Sensors.Sensor.Ready) return "...";
+        return formatBytes(diskTotalSensor.value) + "G";
+    }
+
+    property string diskDisplayValue: {
+        var parts = [];
+        if (diskUsedValue && diskTotalValue)
+            parts.push(diskUsedValue + "/" + diskTotalValue);
+        if (diskReadValue && diskWriteValue)
+            parts.push("R:" + diskReadValue + " W:" + diskWriteValue);
+        return parts.join(" ");
+    }
+
     compactRepresentation: ColumnLayout {
         id: compactRow
         spacing: 1
@@ -578,6 +935,8 @@ PlasmoidItem {
                     items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue, iconColor: "#e67e22" });
                 else if (key === "net" && root.showNetwork)
                     items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue, iconColor: "#1abc9c" });
+                else if (key === "disk" && root.showDisk && root.diskDisplayValue)
+                    items.push({ icon: root.diskIcon, label: "DISK:", value: root.diskDisplayValue, iconColor: "#34495e" });
             }
             return items;
         }
@@ -635,8 +994,9 @@ PlasmoidItem {
                     var items = [];
                     for (var i = 0; i < root.orderedKeys.length; i++) {
                         var key = root.orderedKeys[i];
-                        if (key === "cpu" && root.showCpu)
+                        if (key === "cpu" && root.showCpu) {
                             items.push({ label: "CPU Usage", value: root.cpuValue });
+                        }
                         else if (key === "ram" && root.showRam)
                             items.push({ label: "Memory", value: root.ramValue });
                         else if (key === "temp" && root.showTemp && root.tempValue !== "--")
@@ -654,6 +1014,8 @@ PlasmoidItem {
                             items.push({ label: "Network ↓", value: root.netDownValue });
                             items.push({ label: "Network ↑", value: root.netUpValue });
                         }
+                        else if (key === "disk" && root.showDisk && root.diskDisplayValue)
+                            items.push({ label: "Disk", value: root.diskDisplayValue });
                     }
                     return items;
                 }
@@ -683,8 +1045,9 @@ PlasmoidItem {
         var parts = [];
         for (var i = 0; i < root.orderedKeys.length; i++) {
             var key = root.orderedKeys[i];
-            if (key === "cpu" && root.showCpu && root.cpuValue)
+            if (key === "cpu" && root.showCpu && root.cpuValue) {
                 parts.push("CPU: " + root.cpuValue);
+            }
             else if (key === "ram" && root.showRam && root.ramValue)
                 parts.push("RAM: " + root.ramValue);
             else if (key === "temp" && root.showTemp && root.tempValue && root.tempValue !== "--")
@@ -700,6 +1063,8 @@ PlasmoidItem {
                 parts.push("PWR: " + root.powerValue);
             else if (key === "net" && root.showNetwork)
                 parts.push("NET: ↓" + root.netDownValue + " ↑" + root.netUpValue);
+            else if (key === "disk" && root.showDisk && root.diskDisplayValue)
+                parts.push("DISK: " + root.diskDisplayValue);
         }
         return parts.join("\n");
     }
