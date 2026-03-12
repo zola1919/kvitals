@@ -79,6 +79,21 @@
         <entry name="metricOrder" type="String">
             <default>cpu,ram,temp,gpu,bat,pwr,net,disk</default>
         </entry>
+        <entry name="compactLayout" type="String">
+            <default>column</default>
+        </entry>
+        <entry name="compactSpacing" type="Int">
+            <default>1</default>
+        </entry>
+        <entry name="iconsMask" type="Bool">
+            <default>true</default>
+        </entry>
+        <entry name="iconMonochrome" type="Bool">
+            <default>false</default>
+        </entry>
+        <entry name="showCpuFrequency" type="Bool">
+            <default>false</default>
+        </entry>
         <entry name="updateInterval" type="Int">
             <default>2000</default>
         </entry>

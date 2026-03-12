@@ -11,6 +11,11 @@ import org.kde.ksysguard.sensors as Sensors
 PlasmoidItem {
     id: root
 
+    property string compactLayout: Plasmoid.configuration.compactLayout || "column"
+    property int compactSpacing: Plasmoid.configuration.compactSpacing || 1
+    property bool iconsMask: Plasmoid.configuration.iconsMask !== false
+    property bool iconMonochrome: Plasmoid.configuration.iconMonochrome
+
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
 
     preferredRepresentation: compactRepresentation
@@ -909,73 +914,155 @@ PlasmoidItem {
         return parts.join(" ");
     }
 
-    compactRepresentation: ColumnLayout {
-        id: compactRow
-        spacing: 1
+    compactRepresentation: Item {
+        id: compactContainer
+        implicitWidth: root.compactLayout === "column" ? columnLayout.implicitWidth : rowLayout.implicitWidth
+        implicitHeight: root.compactLayout === "column" ? columnLayout.implicitHeight : rowLayout.implicitHeight
 
-        TapHandler {
-            onTapped: root.expanded = !root.expanded
-        }
+        Column {
+            id: columnLayout
+            visible: root.compactLayout === "column"
+            anchors.fill: parent
+            spacing: root.compactSpacing
 
-        property var metricsModel: {
-            var items = [];
-            for (var i = 0; i < root.orderedKeys.length; i++) {
-                var key = root.orderedKeys[i];
-                if (key === "cpu" && root.showCpu && root.cpuValue)
-                    items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue, iconColor: "#3daee9" });
-                else if (key === "ram" && root.showRam && root.ramValue)
-                    items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue, iconColor: "#9b59b6" });
-                else if (key === "temp" && root.showTemp && root.tempValue && root.tempValue !== "--")
-                    items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue, iconColor: "#e74c3c" });
-                else if (key === "gpu" && root.showGpu && root.hasGpuData)
-                    items.push({ icon: root.gpuIcon, label: "GPU:", value: root.gpuDisplayValue, iconColor: "#2ecc71" });
-                else if (key === "bat" && root.showBattery && root.batValue)
-                    items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue, iconColor: "#f1c40f" });
-                else if (key === "pwr" && root.showPower && root.powerValue)
-                    items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue, iconColor: "#e67e22" });
-                else if (key === "net" && root.showNetwork)
-                    items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue, iconColor: "#1abc9c" });
-                else if (key === "disk" && root.showDisk && root.diskDisplayValue)
-                    items.push({ icon: root.diskIcon, label: "DISK:", value: root.diskDisplayValue, iconColor: "#34495e" });
+            TapHandler {
+                onTapped: root.expanded = !root.expanded
             }
-            return items;
+
+            property var metricsModel: {
+                var items = [];
+                for (var i = 0; i < root.orderedKeys.length; i++) {
+                    var key = root.orderedKeys[i];
+                    if (key === "cpu" && root.showCpu && root.cpuValue)
+                        items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue, iconColor: "#3daee9" });
+                    else if (key === "ram" && root.showRam && root.ramValue)
+                        items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue, iconColor: "#9b59b6" });
+                    else if (key === "temp" && root.showTemp && root.tempValue && root.tempValue !== "--")
+                        items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue, iconColor: "#e74c3c" });
+                    else if (key === "gpu" && root.showGpu && root.hasGpuData)
+                        items.push({ icon: root.gpuIcon, label: "GPU:", value: root.gpuDisplayValue, iconColor: "#2ecc71" });
+                    else if (key === "bat" && root.showBattery && root.batValue)
+                        items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue, iconColor: "#f1c40f" });
+                    else if (key === "pwr" && root.showPower && root.powerValue)
+                        items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue, iconColor: "#e67e22" });
+                    else if (key === "net" && root.showNetwork)
+                        items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue, iconColor: "#1abc9c" });
+                    else if (key === "disk" && root.showDisk && root.diskDisplayValue)
+                        items.push({ icon: root.diskIcon, label: "DISK:", value: root.diskDisplayValue, iconColor: "#34495e" });
+                }
+                return items;
+            }
+
+            Repeater {
+                model: columnLayout.metricsModel
+
+                delegate: Row {
+                    spacing: 2
+                    width: parent.width
+
+                    // Icon
+                    Kirigami.Icon {
+                        visible: root.useIcons
+                        source: modelData.icon
+                        isMask: root.iconsMask
+                        color: root.iconMonochrome ? Kirigami.Theme.textColor : modelData.iconColor
+                        width: root.iconSize
+                        height: root.iconSize
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    // Text label
+                    PlasmaComponents.Label {
+                        visible: root.useText
+                        text: modelData.label
+                        font.pixelSize: root.effectiveFontSize
+                        font.family: root.fontFamily
+                        color: Kirigami.Theme.textColor
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    // Value
+                    PlasmaComponents.Label {
+                        text: modelData.value
+                        font.pixelSize: root.effectiveFontSize
+                        font.family: root.fontFamily
+                        color: Kirigami.Theme.textColor
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+            }
         }
 
-        Repeater {
-            model: compactRow.metricsModel
+        Row {
+            id: rowLayout
+            visible: root.compactLayout === "row"
+            anchors.fill: parent
+            spacing: root.compactSpacing
 
-            delegate: RowLayout {
-                spacing: 2
-                Layout.fillWidth: true
+            TapHandler {
+                onTapped: root.expanded = !root.expanded
+            }
 
-                // Icon
-                Kirigami.Icon {
-                    visible: root.useIcons
-                    source: modelData.icon
-                    isMask: true
-                    color: modelData.iconColor
-                    Layout.preferredWidth: root.iconSize
-                    Layout.preferredHeight: root.iconSize
-                    Layout.alignment: Qt.AlignVCenter
+            property var metricsModel: {
+                var items = [];
+                for (var i = 0; i < root.orderedKeys.length; i++) {
+                    var key = root.orderedKeys[i];
+                    if (key === "cpu" && root.showCpu && root.cpuValue)
+                        items.push({ icon: root.cpuIcon, label: "CPU:", value: root.cpuValue, iconColor: "#3daee9" });
+                    else if (key === "ram" && root.showRam && root.ramValue)
+                        items.push({ icon: root.ramIcon, label: "RAM:", value: root.ramValue, iconColor: "#9b59b6" });
+                    else if (key === "temp" && root.showTemp && root.tempValue && root.tempValue !== "--")
+                        items.push({ icon: root.tempIcon, label: "TEMP:", value: root.tempValue, iconColor: "#e74c3c" });
+                    else if (key === "gpu" && root.showGpu && root.hasGpuData)
+                        items.push({ icon: root.gpuIcon, label: "GPU:", value: root.gpuDisplayValue, iconColor: "#2ecc71" });
+                    else if (key === "bat" && root.showBattery && root.batValue)
+                        items.push({ icon: root.batteryIcon, label: "BAT:", value: root.batValue, iconColor: "#f1c40f" });
+                    else if (key === "pwr" && root.showPower && root.powerValue)
+                        items.push({ icon: root.powerIcon, label: "PWR:", value: root.powerValue, iconColor: "#e67e22" });
+                    else if (key === "net" && root.showNetwork)
+                        items.push({ icon: root.networkIcon, label: "NET:", value: "↓" + root.netDownValue + " ↑" + root.netUpValue, iconColor: "#1abc9c" });
+                    else if (key === "disk" && root.showDisk && root.diskDisplayValue)
+                        items.push({ icon: root.diskIcon, label: "DISK:", value: root.diskDisplayValue, iconColor: "#34495e" });
                 }
+                return items;
+            }
 
-                // Text label
-                PlasmaComponents.Label {
-                    visible: root.useText
-                    text: modelData.label
-                    font.pixelSize: root.effectiveFontSize
-                    font.family: root.fontFamily
-                    color: Kirigami.Theme.textColor
-                    Layout.alignment: Qt.AlignVCenter
-                }
+            Repeater {
+                model: rowLayout.metricsModel
 
-                // Value
-                PlasmaComponents.Label {
-                    text: modelData.value
-                    font.pixelSize: root.effectiveFontSize
-                    font.family: root.fontFamily
-                    color: Kirigami.Theme.textColor
-                    Layout.alignment: Qt.AlignVCenter
+                delegate: Row {
+                    spacing: 2
+                    height: parent.height
+
+                    // Icon
+                    Kirigami.Icon {
+                        visible: root.useIcons
+                        source: modelData.icon
+                        isMask: root.iconsMask
+                        color: root.iconMonochrome ? Kirigami.Theme.textColor : modelData.iconColor
+                        width: root.iconSize
+                        height: root.iconSize
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    // Text label
+                    PlasmaComponents.Label {
+                        visible: root.useText
+                        text: modelData.label
+                        font.pixelSize: root.effectiveFontSize
+                        font.family: root.fontFamily
+                        color: Kirigami.Theme.textColor
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+
+                    // Value
+                    PlasmaComponents.Label {
+                        text: modelData.value
+                        font.pixelSize: root.effectiveFontSize
+                        font.family: root.fontFamily
+                        color: Kirigami.Theme.textColor
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
                 }
             }
         }
