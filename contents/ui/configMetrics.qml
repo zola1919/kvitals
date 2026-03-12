@@ -15,13 +15,18 @@ KCM.SimpleKCM {
     property bool cfg_showBattery
     property bool cfg_showPower
     property bool cfg_showNetwork
+    property bool cfg_showDisk
+    property bool cfg_showCpuPower
+    property bool cfg_showCpuFrequency
     property string cfg_networkInterface: "auto"
+    property string cfg_diskDevice: "auto"
     property string cfg_batteryDevice: "auto"
-    property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net"
+    property string cfg_metricOrder: "cpu,ram,temp,gpu,bat,pwr,net,disk"
 
     property var ifaceList: ["auto"]
+    property var diskList: ["auto"]
 
-    readonly property var allKeys: ["cpu", "ram", "temp", "gpu", "bat", "pwr", "net"]
+    readonly property var allKeys: ["cpu", "ram", "temp", "gpu", "bat", "pwr", "net", "disk"]
 
     readonly property var metricLabels: ({
         "cpu":  i18n("CPU Usage"),
@@ -30,7 +35,8 @@ KCM.SimpleKCM {
         "gpu":  i18n("GPU Metrics"),
         "bat":  i18n("Battery Status"),
         "pwr":  i18n("Power Consumption"),
-        "net":  i18n("Network Speed")
+        "net":  i18n("Network Speed"),
+        "disk": i18n("Disk Usage")
     })
 
     property var currentOrder: {
@@ -53,6 +59,7 @@ KCM.SimpleKCM {
             case "bat":  return cfg_showBattery;
             case "pwr":  return cfg_showPower;
             case "net":  return cfg_showNetwork;
+            case "disk": return cfg_showDisk;
         }
         return false;
     }
@@ -66,6 +73,7 @@ KCM.SimpleKCM {
             case "bat":  cfg_showBattery = val; break;
             case "pwr":  cfg_showPower   = val; break;
             case "net":  cfg_showNetwork = val; break;
+            case "disk": cfg_showDisk    = val; break;
         }
     }
 
@@ -108,6 +116,23 @@ KCM.SimpleKCM {
         }
     }
 
+    Plasma5Support.DataSource {
+        id: diskSource
+        engine: "executable"
+        connectedSources: ["ls /sys/block/"]
+
+        onNewData: function(source, data) {
+            if (data["exit code"] !== 0) return;
+            var raw = data["stdout"].trim();
+            if (raw.length === 0) return;
+            var disks = raw.split("\n").filter(function(name) {
+                return !name.startsWith("loop") && name.length > 0;
+            });
+            disks.unshift("auto");
+            metricsPage.diskList = disks;
+        }
+    }
+
     Kirigami.FormLayout {
 
         Label {
@@ -123,36 +148,75 @@ KCM.SimpleKCM {
             Repeater {
                 model: metricsPage.currentOrder
 
-                delegate: RowLayout {
-                    spacing: Kirigami.Units.smallSpacing
+                delegate: ColumnLayout {
+                    spacing: 0
                     Layout.fillWidth: true
 
-                    CheckBox {
-                        checked: metricsPage.isChecked(modelData)
-                        onToggled: metricsPage.setChecked(modelData, checked)
-                    }
-
-                    Label {
-                        text: metricsPage.metricLabels[modelData] || modelData
+                    RowLayout {
+                        spacing: Kirigami.Units.smallSpacing
                         Layout.fillWidth: true
+
+                        CheckBox {
+                            checked: metricsPage.isChecked(modelData)
+                            onToggled: metricsPage.setChecked(modelData, checked)
+                        }
+
+                        Label {
+                            text: metricsPage.metricLabels[modelData] || modelData
+                            Layout.fillWidth: true
+                        }
+
+                        Button {
+                            icon.name: "arrow-up"
+                            enabled: index > 0
+                            flat: true
+                            implicitWidth: 32
+                            implicitHeight: 32
+                            onClicked: metricsPage.moveMetric(index, index - 1)
+                        }
+
+                        Button {
+                            icon.name: "arrow-down"
+                            enabled: index < metricsPage.currentOrder.length - 1
+                            flat: true
+                            implicitWidth: 32
+                            implicitHeight: 32
+                            onClicked: metricsPage.moveMetric(index, index + 1)
+                        }
                     }
 
-                    Button {
-                        icon.name: "arrow-up"
-                        enabled: index > 0
-                        flat: true
-                        implicitWidth: 32
-                        implicitHeight: 32
-                        onClicked: metricsPage.moveMetric(index, index - 1)
+                    RowLayout {
+                        spacing: Kirigami.Units.smallSpacing
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 32
+                        visible: modelData === "cpu"
+
+                        CheckBox {
+                            checked: cfg_showCpuPower
+                            onToggled: cfg_showCpuPower = checked
+                        }
+
+                        Label {
+                            text: i18n("Show CPU power draw")
+                            Layout.fillWidth: true
+                        }
                     }
 
-                    Button {
-                        icon.name: "arrow-down"
-                        enabled: index < metricsPage.currentOrder.length - 1
-                        flat: true
-                        implicitWidth: 32
-                        implicitHeight: 32
-                        onClicked: metricsPage.moveMetric(index, index + 1)
+                    RowLayout {
+                        spacing: Kirigami.Units.smallSpacing
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 32
+                        visible: modelData === "cpu"
+
+                        CheckBox {
+                            checked: cfg_showCpuFrequency
+                            onToggled: cfg_showCpuFrequency = checked
+                        }
+
+                        Label {
+                            text: i18n("Show CPU frequency")
+                            Layout.fillWidth: true
+                        }
                     }
                 }
             }
@@ -169,6 +233,20 @@ KCM.SimpleKCM {
             }
             onActivated: {
                 cfg_networkInterface = metricsPage.ifaceList[currentIndex];
+            }
+        }
+
+        ComboBox {
+            id: diskCombo
+            Kirigami.FormData.label: i18n("Monitoring drive:")
+            model: metricsPage.diskList
+            enabled: cfg_showDisk
+            currentIndex: {
+                var idx = metricsPage.diskList.indexOf(cfg_diskDevice);
+                return idx >= 0 ? idx : 0;
+            }
+            onActivated: {
+                cfg_diskDevice = metricsPage.diskList[currentIndex];
             }
         }
 
