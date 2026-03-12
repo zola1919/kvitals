@@ -30,22 +30,6 @@ PlasmoidItem {
     property bool showDisk: Plasmoid.configuration.showDisk
     property bool showCpuPower: Plasmoid.configuration.showCpuPower
     property bool showCpuFrequency: Plasmoid.configuration.showCpuFrequency
-    
-    // Watch for CPU power toggle changes
-    onShowCpuPowerChanged: {
-        if (showCpuPower && !raplPermissionFixed) {
-            // Check if file is readable first, only chmod if needed
-            raplCheckSource.connectSource("cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null");
-        }
-    }
-
-    // Watch for CPU frequency toggle changes
-    onShowCpuFrequencyChanged: {
-        if (showCpuFrequency) {
-            cpuFrequencySource.run();
-        }
-    }
-
     property string networkInterface: Plasmoid.configuration.networkInterface
     property string diskDevice: Plasmoid.configuration.diskDevice
     property string batteryDevice: Plasmoid.configuration.batteryDevice
@@ -284,7 +268,6 @@ PlasmoidItem {
     property real cpuPowerWatts: 0
     property real previousTimestampUSec: 0
     property bool cpuPowerSupported: false
-    property bool raplPermissionFixed: false
 
     Plasma5Support.DataSource {
         id: cpuPowerSource
@@ -329,43 +312,13 @@ PlasmoidItem {
         }
     }
 
-    Plasma5Support.DataSource {
-        id: raplCheckSource
-        engine: "executable"
 
-        onNewData: function(sourceName, data) {
-            disconnectSource(sourceName);
-            // Check if file is readable
-            if (data["exit code"] === 0) {
-                // File is already readable, no need to chmod
-                raplPermissionFixed = true;
-                cpuPowerSource.run();
-            } else {
-                // File is not readable, run chmod with password dialog
-                var chmodCmd = "kdesu -c \"chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj\"";
-                chmodRaplSource.connectSource(chmodCmd);
-            }
-        }
-    }
-
-    Plasma5Support.DataSource {
-        id: chmodRaplSource
-        engine: "executable"
-
-        onNewData: function(sourceName, data) {
-            disconnectSource(sourceName);
-            // chmod completed (success or failure)
-            raplPermissionFixed = true;
-            // Try to start reading CPU power
-            cpuPowerSource.run();
-        }
-    }
 
     Timer {
         id: cpuPowerTimer
         interval: root.updateInterval
         repeat: true
-        running: raplPermissionFixed && root.showCpuPower
+        running: root.showCpuPower
         onTriggered: {
             cpuPowerSource.run();
         }
@@ -550,8 +503,7 @@ PlasmoidItem {
         
         // Initialize CPU power if already enabled in config
         if (root.showCpuPower) {
-            // Check if file is readable first, only chmod if needed
-            raplCheckSource.connectSource("cat /sys/class/powercap/intel-rapl:0/energy_uj 2>/dev/null");
+            cpuPowerSource.run();
         }
         
         // Initialize CPU frequency reading if enabled

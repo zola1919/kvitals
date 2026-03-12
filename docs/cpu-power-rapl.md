@@ -23,18 +23,57 @@ This provides an accurate measurement of CPU power draw that includes all proces
 
 ## Permissions Setup
 
-By default, the RAPL interface file is only readable by root. KVitals handles this automatically:
+By default, the RAPL interface file is only readable by root. You need to grant read permission to regular users.
 
-### Automatic One-Time Setup (Default)
+### Setup (One-time, Automatic)
 
-When you first launch the widget with CPU Power enabled:
+Run the provided setup script to make the RAPL file readable and auto-restore permissions at boot:
 
-1. You'll be prompted for your sudo password **once**
-2. The widget will make the RAPL file readable (`chmod 644`)
-3. All subsequent reads work without any prompts
-4. This setting persists until the next system reboot
+```bash
+cd kvitals
+sudo bash setup-rapl-udev.sh
+```
 
-This is the simplest approach and requires no manual configuration.
+This will:
+1. Make the RAPL file readable immediately
+2. Create a systemd service to auto-restore permissions at every boot
+3. Enable the service
+
+**After setup:**
+- Restart Plasma: `kquitapp6 plasmashell && kstart plasmashell &`
+- The widget will work without any password prompts
+- Permissions will automatically persist across reboots
+
+### Manual Setup (if preferred)
+
+Make the file readable once:
+
+```bash
+sudo chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj
+```
+
+For automatic restoration at boot, create `/etc/systemd/system/rapl-chmod.service`:
+
+```ini
+[Unit]
+Description=Make RAPL file readable for KVitals
+Before=display-manager.service
+DefaultDependencies=no
+
+[Service]
+Type=oneshot
+ExecStart=/bin/chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable it:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable rapl-chmod.service
+```
 
 ## Display Locations
 
@@ -52,25 +91,18 @@ Shows both the usage percentage and power draw in watts.
 
 CPU power monitoring is **disabled by default**. To enable it:
 
-1. Right-click the widget and select "Configure"
-2. Under CPU, check the "Show power draw" option
-3. Apply the changes
-4. **On first run**: You'll be prompted for your sudo password to make the RAPL file readable
-5. Enter your password and the feature will start working
+1. First, run the setup script to configure RAPL permissions (see **Permissions Setup** above)
+2. Right-click the widget and select "Configure"
+3. Under CPU, check the "Show power draw" option
+4. Apply the changes
 
-After the first password prompt, all subsequent reads work without authentication.
+The feature will start working immediately once RAPL permissions are configured.
 
 ### Update Interval
 
 The power data is sampled at the same interval as other metrics (configurable, default 2000ms).
 
 ## Troubleshooting
-
-### Password prompt appears multiple times
-
-The widget prompts only **once** on first startup. If you see repeated prompts:
-- The chmod may have failed - verify you have sudo access
-- Check that your user can use `sudo` without a password prompt (contact your system admin if needed)
 
 ### Power draw not appearing
 
@@ -84,7 +116,7 @@ The widget prompts only **once** on first startup. If you see repeated prompts:
    cat /sys/class/powercap/intel-rapl:0/energy_uj
    ```
    - If readable, the feature should work
-   - If "Permission denied", enable the feature in widget settings to trigger the one-time chmod
+   - If "Permission denied", run the setup script: `sudo bash setup-rapl-udev.sh`
 
 3. **Verify settings**: Make sure "Show power draw" is checked under CPU configuration
 
@@ -97,7 +129,7 @@ The first few measurements after startup may be inaccurate. This stabilizes with
 The CPU power monitoring has minimal overhead:
 - Single file read per update cycle (default every 2000ms)
 - Simple arithmetic calculation
-- One-time sudo prompt on first toggle
+- No runtime password prompts (permissions configured at setup time)
 
 ## See Also
 
