@@ -32,12 +32,12 @@ echo "Creating systemd service for auto-restoring RAPL permissions..."
 cat > "$SYSTEMD_SERVICE_FILE" <<'EOF'
 [Unit]
 Description=Make RAPL file readable for KVitals
-Before=display-manager.service
-DefaultDependencies=no
+After=local-fs.target
 
 [Service]
 Type=oneshot
-ExecStart=/bin/chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj
+ExecStart=/bin/bash -c 'until [ -e /sys/class/powercap/intel-rapl:0/energy_uj ]; do sleep 1; done; chmod 644 /sys/class/powercap/intel-rapl:0/energy_uj'
+TimeoutStartSec=15
 
 [Install]
 WantedBy=multi-user.target
