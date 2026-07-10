@@ -8,7 +8,7 @@ Item {
     property bool _dbg: { console.warn("[KVitals] DiskSensors: constructing..."); return true; }
 
     property int updateInterval: 2000
-    property bool enabled: true
+    property bool diskEnabled: true
     property string tempUnit: "C"
     property string networkUnit: "bytes"
     property string diskDevice: "auto"
@@ -54,28 +54,28 @@ Item {
         id: diskReadSensor
         sensorId: "disk/" + root._devicePath + "/read"
         updateRateLimit: root.updateInterval
-        enabled: root.enabled
+        enabled: root.diskEnabled
     }
 
     Sensors.Sensor {
         id: diskWriteSensor
         sensorId: "disk/" + root._devicePath + "/write"
         updateRateLimit: root.updateInterval
-        enabled: root.enabled
+        enabled: root.diskEnabled
     }
 
     Sensors.Sensor {
         id: diskUsedSensor
         sensorId: "disk/" + root._devicePath + "/used"
         updateRateLimit: root.updateInterval
-        enabled: root.enabled
+        enabled: root.diskEnabled
     }
 
     Sensors.Sensor {
         id: diskTotalSensor
         sensorId: "disk/" + root._devicePath + "/total"
         updateRateLimit: root.updateInterval
-        enabled: root.enabled
+        enabled: root.diskEnabled
     }
 
     // ── Partition usage via lsblk + df (for specific device) ────────────────

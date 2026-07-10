@@ -179,7 +179,9 @@ Item {
 
     Loader {
         id: inner
-        anchors.fill: parent
         sourceComponent: compactRow.isRow ? rowLayoutComponent : columnLayoutComponent
     }
+
+    implicitWidth: inner.implicitWidth
+    implicitHeight: inner.implicitHeight
 }

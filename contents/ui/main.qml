@@ -286,7 +286,7 @@ PlasmoidItem {
             DiskSensors {
                 id: _disk
                 updateInterval: root.updateInterval
-                enabled: root.showDisk
+                diskEnabled: root.showDisk
                 tempUnit: root.tempUnit
                 networkUnit: root.networkUnit
                 diskDevice: root.diskDevice
