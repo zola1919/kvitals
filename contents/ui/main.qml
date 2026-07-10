@@ -188,76 +188,54 @@ PlasmoidItem {
     QtObject { id: _nullDisk;    property string diskReadValue: "0"; property string diskWriteValue: "0"; property string diskUsedValue: "..."; property string diskTotalValue: "..."; property string diskTempValue: ""; property real diskTempNumber: NaN }
     QtObject { id: _nullFans;    property string fanValue: ""; property bool hasFanData: false }
 
-    // --- Sensor Loaders (deferred via active flag) ---
+    // --- Sensor loading ---
+    // All sensor components are created DYNAMICALLY after the first event loop
+    // iteration to avoid triggering a use-after-free in KirigamiPlasmaStyle's
+    // PlasmaTheme::syncColors() during the refWindow() walk at boot.
+    // Only QObject children (Timer, QtObject) are safe at boot — no Items/Loaders.
 
-    Loader {
-        id: sensorLoader
-        active: false
-        sourceComponent: Item {
-            property alias cpu:     _cpu
-            property alias memory:  _memory
-            property alias temp:    _temp
-            property alias battery: _battery
-            property alias network: _network
-            property alias disk:    _disk
-
-            CpuSensors     { id: _cpu;     updateInterval: root.updateInterval }
-            MemorySensors  { id: _memory;  updateInterval: root.updateInterval }
-            TempSensors    { id: _temp;    updateInterval: root.updateInterval; tempUnit: root.tempUnit }
-            BatterySensors { id: _battery; updateInterval: root.updateInterval; batteryDevice: root.batteryDevice || "auto" }
-            NetworkSensors { id: _network; updateInterval: root.updateInterval; networkInterface: root.networkInterface; networkUnit: root.networkUnit }
-            DiskSensors    { id: _disk;    updateInterval: root.updateInterval; diskEnabled: root.showDisk; tempUnit: root.tempUnit; networkUnit: root.networkUnit; diskDevice: root.diskDevice }
-        }
-    }
+    property var _sensorParent: null  // will hold the dynamically created Item
 
     Timer {
         id: sensorActivationTimer
-        interval: 200
-        repeat: true
-        property bool _armed: false
-        onTriggered: {
-            if (!_armed) {
-                if (typeof Plasmoid.configuration.showDisk !== "undefined") {
-                    _armed = true;
-                    console.warn("[KVitals] main.qml: config ready — scheduling sensor load...");
-                }
-                return;
-            }
-            repeat = false;
-            console.warn("[KVitals] main.qml: activating sensors...");
-            sensorLoader.active = true;
-            root._sensorsReady = true;
-            root.cpu     = sensorLoader.item.cpu
-            root.memory  = sensorLoader.item.memory
-            root.temp    = sensorLoader.item.temp
-            root.battery = sensorLoader.item.battery
-            root.network = sensorLoader.item.network
-            root.disk    = sensorLoader.item.disk
-        }
-    }
-
-    Loader {
-        id: gpuFanLoader
-        active: false
-        sourceComponent: Item {
-            property alias gpu:  _gpu
-            property alias fans: _fans
-
-            GpuSensors { id: _gpu; updateInterval: root.updateInterval; gpuSelection: root.gpuSelection; gpuLabels: root.gpuLabels; tempUnit: root.tempUnit; gpuMetrics: root.gpuMetrics }
-            FanSensors { id: _fans; updateInterval: root.updateInterval; fanUnit: root.fanUnit }
-        }
-    }
-
-    Timer {
-        id: gpuFanActivationTimer
-        interval: 4000
+        interval: 0
         repeat: false
         onTriggered: {
-            console.warn("[KVitals] main.qml: activating GPU/Fan sensors...");
-            gpuFanLoader.active = true;
+            console.warn("[KVitals] main.qml: creating sensor items...");
+            // Dynamically create an Item with all sensors — Item is a QQuickItem
+            // but it's created AFTER refWindow has already walked the tree.
+            var js = 'import QtQuick\n'
+            + 'import "./sensors"\n'
+            + 'Item {\n'
+            + '  property alias cpu: _cpu\n'
+            + '  property alias memory: _memory\n'
+            + '  property alias temp: _temp\n'
+            + '  property alias battery: _battery\n'
+            + '  property alias network: _network\n'
+            + '  property alias disk: _disk\n'
+            + '  property alias gpu: _gpu\n'
+            + '  property alias fans: _fans\n'
+            + '  CpuSensors     { id: _cpu;     updateInterval: ' + root.updateInterval + ' }\n'
+            + '  MemorySensors  { id: _memory;  updateInterval: ' + root.updateInterval + ' }\n'
+            + '  TempSensors    { id: _temp;    updateInterval: ' + root.updateInterval + '; tempUnit: "' + root.tempUnit + '" }\n'
+            + '  BatterySensors { id: _battery; updateInterval: ' + root.updateInterval + '; batteryDevice: "' + (root.batteryDevice || 'auto') + '" }\n'
+            + '  NetworkSensors { id: _network; updateInterval: ' + root.updateInterval + '; networkInterface: "' + root.networkInterface + '"; networkUnit: "' + root.networkUnit + '" }\n'
+            + '  DiskSensors    { id: _disk;    updateInterval: ' + root.updateInterval + '; diskEnabled: ' + root.showDisk + '; tempUnit: "' + root.tempUnit + '"; networkUnit: "' + root.networkUnit + '"; diskDevice: "' + root.diskDevice + '" }\n'
+            + '  GpuSensors     { id: _gpu;     updateInterval: ' + root.updateInterval + '; gpuSelection: "' + root.gpuSelection + '"; gpuLabels: "' + root.gpuLabels + '"; tempUnit: "' + root.tempUnit + '"; gpuMetrics: "' + root.gpuMetrics + '" }\n'
+            + '  FanSensors     { id: _fans;    updateInterval: ' + root.updateInterval + '; fanUnit: "' + root.fanUnit + '" }\n'
+            + '}';
+            root._sensorParent = Qt.createQmlObject(js, root);
+            root.cpu     = root._sensorParent.cpu;
+            root.memory  = root._sensorParent.memory;
+            root.temp    = root._sensorParent.temp;
+            root.gpu     = root._sensorParent.gpu;
+            root.battery = root._sensorParent.battery;
+            root.network = root._sensorParent.network;
+            root.disk    = root._sensorParent.disk;
+            root.fans    = root._sensorParent.fans;
+            root._sensorsReady = true;
             root._gpuFanReady = true;
-            root.gpu  = gpuFanLoader.item.gpu
-            root.fans = gpuFanLoader.item.fans
+            console.warn("[KVitals] main.qml: sensors ready.");
         }
     }
 
@@ -312,7 +290,6 @@ PlasmoidItem {
     Component.onCompleted: {
         console.warn("[KVitals] main.qml: ready. config: showCpu=" + showCpu + " showGpu=" + showGpu + " showBattery=" + showBattery + " showNetwork=" + showNetwork + " showDisk=" + showDisk + " showCpuPower=" + showCpuPower);
         sensorActivationTimer.start();
-        gpuFanActivationTimer.start();
         if (root.showCpuPower === true) cpuPowerSource.poll();
     }
 
