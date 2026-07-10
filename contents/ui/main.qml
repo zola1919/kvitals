@@ -9,6 +9,7 @@ import "./sensors"
 
 PlasmoidItem {
     id: root
+
     property bool _dbg: { console.warn("[KVitals] main.qml: constructing..."); return true; }
 
     Plasmoid.backgroundHints: PlasmaCore.Types.NoBackground
@@ -158,79 +159,36 @@ PlasmoidItem {
             warningColor, criticalColor, baseTextColor, false)
         : baseTextColor
 
-    // --- Deferred sensor loading ---
-    // Sensors are loaded AFTER the window attachment is complete to avoid
-    // triggering a SIGSEGV in KirigamiPlasmaStyle's PlasmaTheme::syncColors()
-    // during the recursive QQuickItemPrivate::refWindow() walk at boot.
-    // See: https://github.com/nicehash/KVitals/issues/42
+    // --- Sensor data (null until loaded) ---
 
-    property bool _sensorsReady: sensorLoader.status === Loader.Ready
-    property var cpu:     _sensorsReady ? sensorLoader.item.cpu     : _nullCpu
-    property var memory:  _sensorsReady ? sensorLoader.item.memory  : _nullMemory
-    property var temp:    _sensorsReady ? sensorLoader.item.temp    : _nullTemp
-    property var gpu:     _sensorsReady ? sensorLoader.item.gpu     : _nullGpu
-    property var battery: _sensorsReady ? sensorLoader.item.battery : _nullBattery
-    property var network: _sensorsReady ? sensorLoader.item.network : _nullNetwork
-    property var disk:    _sensorsReady ? sensorLoader.item.disk    : _nullDisk
-    property var fans:    _sensorsReady ? sensorLoader.item.fans    : _nullFans
+    property bool _sensorsReady: false
+    property bool _gpuFanReady: false
+    property var cpu:     _nullCpu
+    property var memory:  _nullMemory
+    property var temp:    _nullTemp
+    property var gpu:     _nullGpu
+    property var battery: _nullBattery
+    property var network: _nullNetwork
+    property var disk:    _nullDisk
+    property var fans:    _nullFans
 
     // Safe defaults so bindings don't error before sensors load
-    QtObject {
-        id: _nullCpu
-        property string cpuValue: ""
-        property string cpuFreqValue: ""
-        property real cpuNumericValue: NaN
-    }
-    QtObject {
-        id: _nullMemory
-        property string ramValue: ""
-        property real ramPercentage: NaN
-    }
-    QtObject {
-        id: _nullTemp
-        property string tempValue: "--"
-        property real tempNumericValue: NaN
-    }
+    QtObject { id: _nullCpu;     property string cpuValue: ""; property string cpuFreqValue: ""; property real cpuNumericValue: NaN }
+    QtObject { id: _nullMemory;  property string ramValue: ""; property real ramPercentage: NaN }
+    QtObject { id: _nullTemp;    property string tempValue: "--"; property real tempNumericValue: NaN }
     QtObject {
         id: _nullGpu
-        property real gpuUsageNumber: NaN
-        property real gpuTempNumber: NaN
-        property string gpuValue: ""
-        property string gpuRamValue: ""
-        property string gpuTempValue: ""
-        property string gpuDisplayValue: ""
-        property bool hasGpuData: false
-        property bool hasGpuUsageData: false
-        property bool hasGpuVramData: false
-        property bool hasGpuTempData: false
-        property var gpuDataList: []
-        property var discoveredGpus: []
+        property real gpuUsageNumber: NaN; property real gpuTempNumber: NaN
+        property string gpuValue: ""; property string gpuRamValue: ""; property string gpuTempValue: ""; property string gpuDisplayValue: ""
+        property bool hasGpuData: false; property bool hasGpuUsageData: false; property bool hasGpuVramData: false; property bool hasGpuTempData: false
+        property var gpuDataList: []; property var discoveredGpus: []
     }
-    QtObject {
-        id: _nullBattery
-        property string batValue: ""
-        property string powerValue: ""
-        property real batNumericValue: NaN
-    }
-    QtObject {
-        id: _nullNetwork
-        property string netDownValue: "0"
-        property string netUpValue: "0"
-    }
-    QtObject {
-        id: _nullDisk
-        property string diskReadValue: "0"
-        property string diskWriteValue: "0"
-        property string diskUsedValue: "..."
-        property string diskTotalValue: "..."
-        property string diskTempValue: ""
-        property real diskTempNumber: NaN
-    }
-    QtObject {
-        id: _nullFans
-        property string fanValue: ""
-        property bool hasFanData: false
-    }
+    QtObject { id: _nullBattery; property string batValue: ""; property string powerValue: ""; property real batNumericValue: NaN }
+    QtObject { id: _nullNetwork; property string netDownValue: "0"; property string netUpValue: "0" }
+    QtObject { id: _nullDisk;    property string diskReadValue: "0"; property string diskWriteValue: "0"; property string diskUsedValue: "..."; property string diskTotalValue: "..."; property string diskTempValue: ""; property real diskTempNumber: NaN }
+    QtObject { id: _nullFans;    property string fanValue: ""; property bool hasFanData: false }
+
+    // --- Sensor Loaders (deferred via active flag) ---
 
     Loader {
         id: sensorLoader
@@ -239,78 +197,67 @@ PlasmoidItem {
             property alias cpu:     _cpu
             property alias memory:  _memory
             property alias temp:    _temp
-            property alias gpu:     _gpu
             property alias battery: _battery
             property alias network: _network
             property alias disk:    _disk
-            property alias fans:    _fans
 
-            CpuSensors {
-                id: _cpu
-                updateInterval: root.updateInterval
-            }
-
-            MemorySensors {
-                id: _memory
-                updateInterval: root.updateInterval
-            }
-
-            TempSensors {
-                id: _temp
-                updateInterval: root.updateInterval
-                tempUnit: root.tempUnit
-            }
-
-            GpuSensors {
-                id: _gpu
-                updateInterval: root.updateInterval
-                gpuSelection: root.gpuSelection
-                gpuLabels: root.gpuLabels
-                tempUnit: root.tempUnit
-                gpuMetrics: root.gpuMetrics
-            }
-
-            BatterySensors {
-                id: _battery
-                updateInterval: root.updateInterval
-                batteryDevice: root.batteryDevice || "auto"
-            }
-
-            NetworkSensors {
-                id: _network
-                updateInterval: root.updateInterval
-                networkInterface: root.networkInterface
-                networkUnit: root.networkUnit
-            }
-
-            DiskSensors {
-                id: _disk
-                updateInterval: root.updateInterval
-                diskEnabled: root.showDisk
-                tempUnit: root.tempUnit
-                networkUnit: root.networkUnit
-                diskDevice: root.diskDevice
-            }
-
-            FanSensors {
-                id: _fans
-                updateInterval: root.updateInterval
-                fanUnit: root.fanUnit
-            }
+            CpuSensors     { id: _cpu;     updateInterval: root.updateInterval }
+            MemorySensors  { id: _memory;  updateInterval: root.updateInterval }
+            TempSensors    { id: _temp;    updateInterval: root.updateInterval; tempUnit: root.tempUnit }
+            BatterySensors { id: _battery; updateInterval: root.updateInterval; batteryDevice: root.batteryDevice || "auto" }
+            NetworkSensors { id: _network; updateInterval: root.updateInterval; networkInterface: root.networkInterface; networkUnit: root.networkUnit }
+            DiskSensors    { id: _disk;    updateInterval: root.updateInterval; diskEnabled: root.showDisk; tempUnit: root.tempUnit; networkUnit: root.networkUnit; diskDevice: root.diskDevice }
         }
     }
 
-    // Activate the sensor loader after the initial refWindow() walk is complete.
-    // The SIGSEGV in PlasmaTheme::syncColors() happens synchronously during
-    // ShellCorona::load() → refWindow(), so deferring to the next event loop
-    // iteration (Timer interval: 0) guarantees we're past the dangerous window.
     Timer {
         id: sensorActivationTimer
-        interval: 0
+        interval: 200
+        repeat: true
+        property bool _armed: false
+        onTriggered: {
+            if (!_armed) {
+                if (typeof Plasmoid.configuration.showDisk !== "undefined") {
+                    _armed = true;
+                    console.warn("[KVitals] main.qml: config ready — scheduling sensor load...");
+                }
+                return;
+            }
+            repeat = false;
+            console.warn("[KVitals] main.qml: activating sensors...");
+            sensorLoader.active = true;
+            root._sensorsReady = true;
+            root.cpu     = sensorLoader.item.cpu
+            root.memory  = sensorLoader.item.memory
+            root.temp    = sensorLoader.item.temp
+            root.battery = sensorLoader.item.battery
+            root.network = sensorLoader.item.network
+            root.disk    = sensorLoader.item.disk
+        }
+    }
+
+    Loader {
+        id: gpuFanLoader
+        active: false
+        sourceComponent: Item {
+            property alias gpu:  _gpu
+            property alias fans: _fans
+
+            GpuSensors { id: _gpu; updateInterval: root.updateInterval; gpuSelection: root.gpuSelection; gpuLabels: root.gpuLabels; tempUnit: root.tempUnit; gpuMetrics: root.gpuMetrics }
+            FanSensors { id: _fans; updateInterval: root.updateInterval; fanUnit: root.fanUnit }
+        }
+    }
+
+    Timer {
+        id: gpuFanActivationTimer
+        interval: 4000
         repeat: false
         onTriggered: {
-            console.warn("[KVitals] main.qml: deferred load — activating sensors...");
-            sensorLoader.active = true;
+            console.warn("[KVitals] main.qml: activating GPU/Fan sensors...");
+            gpuFanLoader.active = true;
+            root._gpuFanReady = true;
+            root.gpu  = gpuFanLoader.item.gpu
+            root.fans = gpuFanLoader.item.fans
         }
     }
 
@@ -365,7 +312,8 @@ PlasmoidItem {
     Component.onCompleted: {
         console.warn("[KVitals] main.qml: ready. config: showCpu=" + showCpu + " showGpu=" + showGpu + " showBattery=" + showBattery + " showNetwork=" + showNetwork + " showDisk=" + showDisk + " showCpuPower=" + showCpuPower);
         sensorActivationTimer.start();
-        if (root.showCpuPower) cpuPowerSource.poll();
+        gpuFanActivationTimer.start();
+        if (root.showCpuPower === true) cpuPowerSource.poll();
     }
 
     // --- Representations ---
@@ -402,7 +350,6 @@ PlasmoidItem {
                 else if (key === "gpu" && root.showGpu && root.compactShowGpu && gpu.hasGpuData) {
                     var multiGpu = gpu.gpuDataList.length > 1;
                     if (multiGpu) {
-                        // Show each GPU as a separate entry
                         for (var g = 0; g < gpu.gpuDataList.length; g++) {
                             var gd = gpu.gpuDataList[g];
                             var label = (gd.name.length > 0 ? gd.name : gd.id) + ":";
@@ -477,15 +424,15 @@ PlasmoidItem {
                 else if (key === "net" && root.showNetwork && root.compactShowNetwork)
                     items.push({
                         icon: root.networkIcon, label: "NET:",
-                        value: "↓" + network.netDownValue + " ↑" + network.netUpValue,
+                        value: "\u2193" + network.netDownValue + " \u2191" + network.netUpValue,
                         color: root.baseTextColor, iconColor: root.networkIconColor
                     });
                 else if (key === "disk" && root.showDisk && root.compactShowDisk) {
                     var diskSegs = [];
                     if (disk.diskUsedValue && disk.diskTotalValue && disk.diskUsedValue !== "...")
                         diskSegs.push({value: disk.diskUsedValue + "/" + disk.diskTotalValue, color: root.baseTextColor});
-                    diskSegs.push({value: "↓" + disk.diskReadValue, color: root.baseTextColor},
-                                  {value: "↑" + disk.diskWriteValue, color: root.baseTextColor});
+                    diskSegs.push({value: "\u2193" + disk.diskReadValue, color: root.baseTextColor},
+                                  {value: "\u2191" + disk.diskWriteValue, color: root.baseTextColor});
                     if (disk.diskTempValue)
                         diskSegs.push({value: disk.diskTempValue, color: root.diskTempColor});
                     items.push({icon: root.diskIcon, label: "DSK:", segments: diskSegs, color: root.baseTextColor, iconColor: root.diskIconColor});
@@ -591,8 +538,8 @@ PlasmoidItem {
                         color: root.baseTextColor
                     });
                 else if (key === "net" && root.showNetwork) {
-                    items.push({label: "Network ↓", value: network.netDownValue, color: root.baseTextColor});
-                    items.push({label: "Network ↑", value: network.netUpValue, color: root.baseTextColor});
+                    items.push({label: "Network \u2193", value: network.netDownValue, color: root.baseTextColor});
+                    items.push({label: "Network \u2191", value: network.netUpValue, color: root.baseTextColor});
                 }
                 else if (key === "disk" && root.showDisk) {
                     if (disk.diskUsedValue && disk.diskTotalValue && disk.diskUsedValue !== "...")
@@ -645,12 +592,12 @@ PlasmoidItem {
             else if (key === "pwr" && root.showPower && battery.powerValue)
                 parts.push("PWR: " + battery.powerValue);
             else if (key === "net" && root.showNetwork)
-                parts.push("NET: ↓" + network.netDownValue + " ↑" + network.netUpValue);
+                parts.push("NET: \u2193" + network.netDownValue + " \u2191" + network.netUpValue);
             else if (key === "disk" && root.showDisk) {
                 var dParts = [];
                 if (disk.diskUsedValue && disk.diskTotalValue && disk.diskUsedValue !== "...")
                     dParts.push(disk.diskUsedValue + "/" + disk.diskTotalValue);
-                dParts.push("↓" + disk.diskReadValue, "↑" + disk.diskWriteValue);
+                dParts.push("\u2193" + disk.diskReadValue, "\u2191" + disk.diskWriteValue);
                 if (disk.diskTempValue) dParts.push(disk.diskTempValue);
                 parts.push("DSK: " + dParts.join(" "));
             }

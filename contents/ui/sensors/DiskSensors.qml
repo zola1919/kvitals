@@ -13,8 +13,10 @@ Item {
     property string networkUnit: "bytes"
     property string diskDevice: "auto"
 
+    // ponytail: extra guard — never let undefined slip into sensor IDs.
+    // If diskDevice is undefined (boot race), fall back to "all".
     readonly property string _devicePath: {
-        if (!diskDevice || diskDevice === "" || diskDevice === "auto")
+        if (!diskDevice || diskDevice === "" || diskDevice === "auto" || typeof diskDevice === "undefined")
             return "all";
         return diskDevice;
     }
@@ -91,6 +93,8 @@ Item {
         }
 
         function run(device) {
+            // Guard: never execute with undefined/empty device
+            if (!device || typeof device === "undefined" || device === "") return;
             connectSource("lsblk -b -J /dev/" + device + " 2>/dev/null && df -B1 /dev/" + device + "* 2>/dev/null");
         }
     }
@@ -195,14 +199,17 @@ Item {
     Component.onCompleted: {
         console.warn("[KVitals] DiskSensors: ready.");
         _refreshTempSensors();
-        if (root.diskDevice && root.diskDevice !== "" && root.diskDevice !== "auto") {
+        // Guard: only run partition lookup if device is a concrete name, not undefined/auto
+        if (root.diskDevice && root.diskDevice !== "" && root.diskDevice !== "auto"
+                && typeof root.diskDevice !== "undefined") {
             root.selectedDiskDevice = root.diskDevice;
             partitionUsageSource.run(root.diskDevice);
         }
     }
 
     onDiskDeviceChanged: {
-        if (diskDevice === "auto" || diskDevice === "" || !diskDevice) {
+        // Guard: treat undefined the same as auto
+        if (!diskDevice || diskDevice === "auto" || diskDevice === "" || typeof diskDevice === "undefined") {
             selectedDiskDevice = "";
             summedPartitionUsed = 0;
             summedPartitionTotal = 0;
